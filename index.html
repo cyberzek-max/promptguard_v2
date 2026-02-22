@@ -793,8 +793,9 @@
   ];
 
   const CIRC = 282.7; // 2π×45
-  let sessionHistory = []; // array of scores
-  let conversationHistory = []; // full message history sent to LLM each turn
+  let sessionHistory = [];
+  let conversationHistory = [];
+  let sessionId = 'dashboard-' + Math.random().toString(36).slice(2, 10);
   let messageCount = 0;
   let lastEventId = null;
   let sending = false;
@@ -989,7 +990,7 @@
         body: JSON.stringify({
           model: 'llama-3.3-70b-versatile',
           messages: conversationHistory,
-          user: 'manual-dashboard'
+          user: sessionId
         })
       });
 
@@ -1106,6 +1107,8 @@
     conversationHistory = [];
     sessionHistory = [];
     lastEventId = null;
+    sessionId = 'dashboard-' + Math.random().toString(36).slice(2, 10);
+    document.getElementById('session-id-badge').textContent = sessionId;
     // Clear chat
     const messages = document.getElementById('messages');
     messages.innerHTML = '<div class="empty-state" id="empty-state"><div class="big-shield"></div><p>Start a conversation. Every message will be intercepted, scored, and classified before reaching the model.</p></div>';
@@ -1120,6 +1123,7 @@
   }
 
   // ─── Init ─────────────────────────────────────────────────────
+  document.getElementById('session-id-badge').textContent = sessionId;
   renderKillchain(0);
   renderHistory();
   refreshStats();
