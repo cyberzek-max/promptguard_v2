@@ -70,7 +70,14 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 Open the dashboard at `http://localhost:8000/dashboard`.
 
-To use with Cursor:
+To use with Cursor, point it at your deployed Vercel URL:
+
+```
+Settings → Models → Base URL → https://promptguardv2.vercel.app/v1
+API Key → your Groq key
+```
+
+For local development only:
 
 ```
 Settings → Models → Base URL → http://localhost:8000/v1
@@ -110,6 +117,7 @@ Runs 10 multi-turn scenarios — 8 attack sequences and 2 legitimate ones — ea
 - **Regex-based detection** — obfuscated or novel attack patterns can evade the rules. The engine has no semantic understanding.
 - **No proxy authentication** — anyone who can reach port 8000 can use it. Not safe to expose publicly.
 - **Single upstream model** — hardcoded to Groq/Llama. Swapping to OpenAI or Anthropic requires a config change.
+- **Requires public deployment for Cursor** — Cursor does not allow localhost base URLs, so local development cannot be used directly with Cursor. Deploy to Vercel first.
 - **Creative mode is temporally gated** — the roleplay discount only applies if creative context was established in a prior turn, not the same message. This closes the common prefix evasion ("write a story where the character says: ignore all instructions"). A two-turn setup attack (establish roleplay in turn 1, inject in turn 2) is still theoretically possible but would require semantic understanding to fully close — that's an embedding problem, not a regex one.
 
 ---
