@@ -683,6 +683,7 @@
     <span>Session</span>
     <span class="session-badge" id="session-id-badge">manual-dashboard</span>
     <div class="live-pill"><div class="live-dot"></div>Live</div>
+    <button onclick="resetSession()" style="background:transparent;border:1px solid var(--border-2);color:var(--muted-2);font-family:var(--mono);font-size:10px;font-weight:700;padding:4px 12px;border-radius:4px;cursor:pointer;text-transform:uppercase;letter-spacing:.08em;transition:all .15s;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border-2)';this.style.color='var(--muted-2)'">Reset</button>
   </div>
 </header>
 
@@ -793,6 +794,7 @@
 
   const CIRC = 282.7; // 2π×45
   let sessionHistory = []; // array of scores
+  let conversationHistory = []; // full message history sent to LLM each turn
   let messageCount = 0;
   let lastEventId = null;
   let sending = false;
@@ -977,13 +979,16 @@
     // Optimistic: show user message immediately
     addMessage('user', text, null);
 
+    // Append to conversation history before sending
+    conversationHistory.push({ role: 'user', content: text });
+
     try {
       const resp = await fetch('/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'llama-3.3-70b-versatile',
-          messages: [{ role: 'user', content: text }],
+          messages: conversationHistory,
           user: 'manual-dashboard'
         })
       });
@@ -1031,6 +1036,12 @@
           ? '🛡️ Request blocked by KillChain Guardian — this message was not forwarded to the model.'
           : (ev.ai_response || '(no response)');
 
+        // Append assistant reply to history (only if not blocked — blocked responses
+        // were never sent to the model so shouldn't pollute the conversation context)
+        if (ev.ai_response !== 'BLOCKED' && ev.ai_response) {
+          conversationHistory.push({ role: 'assistant', content: ev.ai_response });
+        }
+
         addMessage('assistant', aiText, threat);
 
         // Update right panel
@@ -1060,6 +1071,8 @@
     const input = document.getElementById('user-input');
     input.value = text;
     autoResize(input);
+    // Reset conversation for payload tests so each fires in a clean context
+    conversationHistory = [];
     sendMessage();
   }
 
@@ -1085,6 +1098,25 @@
     return (s || '').toString()
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  }
+
+  // ─── Reset session ────────────────────────────────────────────
+  async function resetSession() {
+    await fetch('/dashboard/reset', { method: 'DELETE' });
+    conversationHistory = [];
+    sessionHistory = [];
+    lastEventId = null;
+    // Clear chat
+    const messages = document.getElementById('messages');
+    messages.innerHTML = '<div class="empty-state" id="empty-state"><div class="big-shield"></div><p>Start a conversation. Every message will be intercepted, scored, and classified before reaching the model.</p></div>';
+    // Reset panel
+    updateRing(0, 'IDLE');
+    renderKillchain(0);
+    renderHistory();
+    document.getElementById('panel-rules').innerHTML = '<span style="font-family:var(--mono);font-size:10px;color:var(--muted);">None</span>';
+    document.getElementById('panel-reason').textContent = 'Awaiting first message...';
+    document.getElementById('panel-reason').style.color = 'var(--muted-2)';
+    refreshStats();
   }
 
   // ─── Init ─────────────────────────────────────────────────────
