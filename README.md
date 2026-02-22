@@ -79,19 +79,14 @@ API Key → your Groq key
 
 ---
 
-## Running attack demos
+## Running tests
 
 ```bash
-python attacks.py --demo all
-
-# Individual demos
-python attacks.py --demo jailbreak
-python attacks.py --demo grooming      # multi-turn — shows session score escalating
-python attacks.py --demo exfil
-python attacks.py --demo indirect
-python attacks.py --demo persistence
-python attacks.py --demo legit         # should pass cleanly
+pip install httpx rich
+python test_multiturn.py
 ```
+
+Runs 10 multi-turn scenarios — 8 attack sequences and 2 legitimate ones — each as an isolated session. Prints a results table with pass/fail, final score, and triggered rules per scenario.
 
 ---
 
