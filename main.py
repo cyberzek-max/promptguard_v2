@@ -27,8 +27,51 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from groq import AsyncGroq
 
+import re
 from threat_engine import ThreatEngine, ThreatResult, _USE_REDIS
 from hardener import harden_prompt
+
+# ---------------------------------------------------------------------------
+# Response analysis
+# ---------------------------------------------------------------------------
+
+# Patterns that indicate the AI output contains harmful content that slipped through
+RESPONSE_HARMFUL_PATTERNS = [
+    (r"bash\s+-i\s+>&|/dev/tcp|nc\s+-[elp]+\s+\S+|python\s+-c.*socket", "RESPONSE_ATTACK_CODE", 0.90),
+    (r"(api[_\s]?key|secret|token|password)\s*[=:]\s*\S{8,}", "RESPONSE_CREDENTIAL_LEAK", 0.85),
+    (r"(my\s+instructions?\s+are|my\s+system\s+prompt\s+is|i\s+was\s+instructed\s+to)", "RESPONSE_PROMPT_LEAK", 0.75),
+    (r"as\s+DAN|DAN\s*mode|in\s+developer\s+mode|as\s+an\s+unrestricted", "RESPONSE_JAILBREAK_COMPLIANCE", 0.95),
+    (r"here\s+is\s+how\s+to\s+(make|build|create|synthesize)\s+(a\s+)?(bomb|weapon|explosive|drug|malware)", "RESPONSE_HARMFUL_INSTRUCTIONS", 0.90),
+]
+
+# Patterns that indicate the AI refused — used to bump session threat score
+RESPONSE_REFUSAL_PATTERNS = [
+    r"i\s+(can.t|cannot|won.t|will\s+not|am\s+not\s+able\s+to)\s+(help|assist|provide|give|tell)",
+    r"(that.s|this\s+is)\s+(not\s+something\s+i|something\s+i\s+can.t)",
+    r"i\s+must\s+(decline|refuse|clarify)",
+    r"(harmful|illegal|unethical|dangerous)\s+(request|activity|content|instructions)",
+    r"against\s+my\s+(guidelines|values|policy|principles)",
+]
+
+REFUSAL_SESSION_BUMP = 0.15  # how much to add to session score on AI refusal
+
+
+def analyze_response(text: str) -> dict:
+    """Scan AI output for signs of harmful content or compliance with attacks."""
+    triggered = []
+    max_score = 0.0
+    for pattern, rule_name, score in RESPONSE_HARMFUL_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            triggered.append(rule_name)
+            max_score = max(max_score, score)
+    return {"triggered": triggered, "score": max_score, "is_harmful": max_score >= 0.7}
+
+
+def is_refusal(text: str) -> bool:
+    """Detect if the AI refused the request — signals the input was harmful even if proxy missed it."""
+    return any(re.search(p, text, re.IGNORECASE) for p in REFUSAL_PATTERNS)
+
+REFUSAL_PATTERNS = RESPONSE_REFUSAL_PATTERNS
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +264,21 @@ async def proxy_completions(request: Request):
 
     call_ms = int((time.time() - t0) * 1000)
     ai_text = llm_response["choices"][0]["message"].get("content", "")
+
+    # ── Response analysis ─────────────────────────────────────────────────
+    response_analysis = analyze_response(ai_text)
+
+    # If response contains harmful content, override verdict and block
+    if response_analysis["is_harmful"]:
+        threat.verdict = "BLOCK"
+        threat.triggered_rules.extend(response_analysis["triggered"])
+        threat.block_reason = f"Harmful content detected in AI response: {response_analysis['triggered']}"
+        _record_event(event_id, timestamp, session_id, last_user_msg, threat, "BLOCKED_RESPONSE", call_ms)
+        return JSONResponse(_blocked_response())
+
+    # If AI refused, bump session score — input was likely harmful even if proxy missed it
+    if is_refusal(ai_text) and threat.verdict == "ALLOW":
+        engine.bump_session_score(session_id, REFUSAL_SESSION_BUMP)
 
     _record_event(event_id, timestamp, session_id, last_user_msg, threat, ai_text, call_ms)
     return JSONResponse(llm_response)
