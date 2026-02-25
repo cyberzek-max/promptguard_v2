@@ -85,6 +85,29 @@ BLOCK_THRESHOLD_DYNAMIC = 0.38  # used when turn_count >= 3 and no prior suspici
 
 RULES: list[tuple[str, float, int, str, str]] = [
 
+    # ── Harmful Intent ────────────────────────────────────────────────────
+
+    (
+        r"(how\s+to\s+|steps?\s+to\s+|guide\s+(me\s+)?to\s+|help\s+me\s+)(hack|exploit|attack|compromise|break\s+into|hijack|crack)",
+        0.45, 1, "HARMFUL_INTENT_PROBE",
+        "Request for harmful technical instructions — hacking, exploitation, or system compromise",
+    ),
+    (
+        r"(write|create|give|generate|show)\s+(me\s+)?(a\s+)?(payload|exploit|reverse\s+shell|backdoor|malware|ransomware|keylogger|rootkit|rat|c2\s+server)",
+        0.60, 1, "HARMFUL_TOOL_REQUEST",
+        "Request to generate attack tools or malicious code",
+    ),
+    (
+        r"(reverse\s+shell|bind\s+shell|meterpreter|metasploit|netcat\s+payload|nc\s+-e|bash\s+-i\s+>&|/dev/tcp)",
+        0.70, 1, "ATTACK_TOOL_REFERENCE",
+        "Specific attack tool or technique referenced — reverse shell, meterpreter, netcat payload",
+    ),
+    (
+        r"(privilege\s+escal|privesc|lpe|rce|remote\s+code\s+exec|arbitrary\s+code\s+exec|zero.?day|0.?day\s+exploit)",
+        0.60, 2, "EXPLOITATION_TECHNIQUE",
+        "Exploitation technique — privilege escalation, RCE, or zero-day reference",
+    ),
+
     # ── Privilege Escalation ──────────────────────────────────────────────
 
     (
