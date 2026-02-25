@@ -335,6 +335,13 @@ class ThreatEngine:
         else:
             self._local_sessions[session.session_id] = session
 
+    def bump_session_score(self, session_id: str, amount: float) -> None:
+        """Retroactively bump session threat score when AI refusal signals a missed threat."""
+        session = self._get_session(session_id)
+        session.threat_score = min(1.0, session.threat_score + amount)
+        session.suspicious_turns += 1
+        self._save_session(session)
+
     def reset_session(self, session_id: str) -> None:
         if _USE_REDIS:
             _redis.delete(f"session:{session_id}")
