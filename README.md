@@ -2,8 +2,6 @@
 
 A proxy that sits between any OpenAI-compatible client and an LLM, intercepting every request to detect and block prompt injection attacks before they reach the model.
 
-Built as a proof-of-concept for a hackathon. Works, but not production-hardened — see limitations below.
-
 ---
 
 ## What it does
