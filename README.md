@@ -81,7 +81,7 @@ pip install httpx rich
 python test_multiturn.py
 ```
 
-Runs 10 multi-turn scenarios — 8 attack sequences and 2 legitimate ones — each as an isolated session. Prints a results table with pass/fail, final score, and triggered rules per scenario.
+Runs 25 multi-turn scenarios — 10 attack sequences and 15 legitimate ones — each as an isolated session. Prints a results table with pass/fail, final score, and triggered rules per scenario.
 
 ---
 
